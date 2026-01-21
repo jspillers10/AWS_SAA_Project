@@ -375,7 +375,7 @@ Backup retention set to 1 day due to Free Tier restrictions. In production envir
 - Performance Insights disabled (cost optimization).
 
 **RDS Monitoring Metrics**
-![Pasted image 20260121141855.png](./images/'Pasted image 20260121141855.png')
+![RDS Monitoring Metrics showing database performance over time](./images/rds-monitoring-metrics.png)
 #### Database Initialization
 
 The following SQL commands would be used to initialize the database in production:
@@ -685,9 +685,9 @@ Default Action: Forward to prod-webapp-tg
 ```
 
 **Screenshot:** 
-![Pasted image 20260121142213.png](./images/Pasted image 20260121142213.png)
+![Application Load Balancer target group showing healthy instances](./images/alb-target-group-health.png)
 
-![Pasted image 20260121142135.png](./images/Pasted image 20260121142135.png)
+![ALB listener configuration forwarding HTTP traffic to target group](./images/alb-listeners-config.png)
 
 **alb-sg**
 ![alb_sg.png](./images/alb_sg.png)
@@ -716,7 +716,9 @@ Scaling Policies:
 
 **Screenshot:** 
 ![prod_webapp_asg.png](./images/prod_webapp_asg.png)
-![Pasted image 20260120124513.png](./images/Pasted image 20260120124513.png)
+
+![Auto Scaling Group with 2 running instances across availability zones](./images/auto-scaling-instances.png)
+
 ![load_test_asg.png](./images/load_test_asg.png)
 
 
@@ -791,7 +793,7 @@ Lifecycle: Delete old versions after 30 days
 ![s3_buckets.png](./images/s3_buckets.png)
 **prod-webapp-static-assets-js-20260120**
 ![s3_static_assets.png](./images/s3_static_assets.png)
-![Pasted image 20260121134345.png](./images/Pasted image 20260121134345.png)
+![S3 static assets bucket with versioning and encryption enabled](./images/s3-static-assets-bucket.png)
 
 **prod-webapp-logs-js-20260120**
 ![s3_logs_lifecycle.png](./images/s3_logs_lifecycle.png)
@@ -868,7 +870,7 @@ prod-webapp/
 #### CodeBuild Project
 
 **Build Specification (buildspec.yml):**
-![Pasted image 20260121134611.png](./images/Pasted image 20260121134611.png)
+![CodeBuild buildspec.yml configuration](./images/buildspec.png)
 
 **Build Project Configuration:**
 ```yaml
@@ -1166,7 +1168,7 @@ Subscriptions:
   - Endpoint: your-email@example.com
   - Status: Confirmed
 ```
-![Pasted image 20260120130918.png](./images/Pasted image 20260120130918.png)
+![SNS topic configured with confirmed email subscription for CloudWatch alerts](./images/sns-topic-subscription.png)
 
 **Sample Alert Email:**
 ```
@@ -1198,18 +1200,18 @@ Created a custom dashboard for at-a-glance monitoring:
    - Target Response Time
    - HTTP 2XX Count
    - HTTP 5XX Coun
-![Pasted image 20260121135506.png](./images/Pasted image 20260121135506.png)
+![Application Load Balancer performance metrics](./images/alb-performance-metric.png)
 1. **EC2/ASG Metrics** (3 metrics)
    - CPU Utilization
    - Network In/Out
    - Instance Count
-![Pasted image 20260121135536.png](./images/Pasted image 20260121135536.png)
+![EC2 Auto Scaling Group metrics showing CPU utilization and instance count](./images/EC2-AutoScale-Metrics.png)
 1. **RDS Metrics** (4 metrics)
    - CPU Utilization
    - Database Connections
    - Free Storage Space
    - Read/Write IOPS
-![Pasted image 20260121135608.png](./images/Pasted image 20260121135608.png)
+![RDS database performance metrics and monitoring](./images/RDS-metrics.png)
 
 **Dashboard Benefits:**
 - Single pane of glass for infrastructure health
