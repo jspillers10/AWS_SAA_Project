@@ -235,20 +235,20 @@ I implemented a three-tier subnet architecture across two Availability Zones:
 **Screenshots:**
 ![[all_route_tables.png]]
 **public-rt**
-![[public_rt.png]]
-![[public_rt2.png]]
-![[public_rt3.png]]
+![public_rt.png](./images/public_rt.png)
+![public_rt2.png](./images/public_rt2.png)
+![public_rt3.png](./images/public_rt3.png)
 **private-rt-2a**
-![[private_rt_2a.png]]
+![private_rt_2a.png](./images/private_rt_2a.png)
 
 **private-rt-2b**
-![[private_rt_2b.png]]
+![private_rt_2b.png](./images/private_rt_2b.png)
 
 **NAT GATEWAYS**
 **nat-gw-2a**
-![[nat_gw_2a.png]]
+![nat_gw_2a.png](./images/nat_gw_2a.png)
 **nat-gw-2b**
-![[nat_gw_2b.png]]
+![nat_gw_2b.png](./images/nat_gw_2b.png)
 
 **Key Learning:** Separate route tables per AZ prevent a single NAT gateway failure from affecting both AZs.
 
@@ -272,7 +272,7 @@ Outbound Rules:
   - HTTP (80) to app-sg only
 Security Group ID: sg-[FILL IN]
 ```
-![[alb_sg.png]]
+![alb_sg.png](./images/alb_sg.png)
 
 **2. Application Security Group (app-sg)**
 ```
@@ -285,7 +285,7 @@ Outbound Rules:
   - MySQL (3306) to rds-sg
 Security Group ID: sg-[FILL IN]
 ```
-![[app_sg.png]]
+![app_sg.png](./images/app_sg.png)
 
 **3. RDS Security Group (rds-sg)**
 ```
@@ -296,7 +296,7 @@ Outbound Rules:
   - None required
 Security Group ID: sg-[FILL IN]
 ```
-![[rds_sg.png]]
+![rds_sg.png](./images/rds_sg.png)
 
 **Security Analysis:**
 - ✅ Application tier cannot be accessed directly from internet
@@ -339,7 +339,7 @@ Engine: MySQL 8.0.35
 Instance Class: db.t3.micro (2 vCPU, 1GB RAM)
 Storage: 20GB gp3 (encrypted)
 Multi-AZ: Yes (automatic failover)
-Backup Retention: 7 days
+Backup Retention: 1 day (Free Tier restriction - production: 7-30 days)
 Backup Window: 03:00-04:00 UTC
 Maintenance Window: Mon 04:00-05:00 UTC
 Deletion Protection: Enabled
@@ -348,7 +348,7 @@ Deletion Protection: Enabled
 **Endpoint:** `prod-webapp-db.c9my88gaam60.us-east-2.rds.amazonaws.com:3306`
 
 **Created DB SubNet Group**
-![[prod_db_subnet_group.png]]
+![prod_db_subnet_group.png](./images/prod_db_subnet_group.png)
 Backup retention set to 1 day due to Free Tier restrictions. In production environments, 7-30 day retention is recommended for compliance and disaster recovery.
 #### Security Configurations
 
@@ -375,7 +375,7 @@ Backup retention set to 1 day due to Free Tier restrictions. In production envir
 - Performance Insights disabled (cost optimization).
 
 **RDS Monitoring Metrics**
-![[Pasted image 20260121141855.png]]
+![Pasted image 20260121141855.png](./images/'Pasted image 20260121141855.png')
 #### Database Initialization
 
 The following SQL commands would be used to initialize the database in production:
@@ -415,13 +415,15 @@ be part of the initial deployment automation.
 
 #### IAM Role Configuration
 
-Created an instance role with minimal required permissions:
+**Designed Architecture:**
 
+**Intended IAM Policy (ec2-webapp-role):**
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "CloudWatchMetrics",
       "Effect": "Allow",
       "Action": [
         "cloudwatch:PutMetricData",
@@ -434,21 +436,82 @@ Created an instance role with minimal required permissions:
       "Resource": "*"
     },
     {
+      "Sid": "S3StaticAssets",
       "Effect": "Allow",
       "Action": [
         "s3:GetObject"
       ],
       "Resource": "arn:aws:s3:::prod-webapp-static-assets-*/*"
+    },
+    {
+      "Sid": "SecretsManager",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-2:*:secret:prod/webapp/db-*"
     }
   ]
 }
 ```
 
-**Attached Managed Policies:**
-- `CloudWatchAgentServerPolicy` (for metrics)
-- `AmazonSSMManagedInstanceCore` (for Systems Manager access)
+**Intended Managed Policies:**
+- `CloudWatchAgentServerPolicy` - For detailed metrics collection
+- `AmazonSSMManagedInstanceCore` - For Systems Manager Session Manager access (secure SSH alternative)
+- `AWSCodeDeployRole` - For receiving automated deployments
 
-**Screenshot:** ![[IAM_roles.png]]
+**Implementation Note:**
+
+In this demonstration environment, instances were deployed using AWS service-linked roles to simplify the infrastructure build process and focus on core networking and security architecture. In production deployments, the following approach would be used:
+
+1. **Create IAM Role:**
+```bash
+   aws iam create-role --role-name ec2-webapp-role \
+     --assume-role-policy-document file://trust-policy.json
+```
+
+2. **Attach Policies:**
+```bash
+   aws iam attach-role-policy --role-name ec2-webapp-role \
+     --policy-arn arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+   
+   aws iam attach-role-policy --role-name ec2-webapp-role \
+     --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+```
+
+3. **Create Instance Profile:**
+```bash
+   aws iam create-instance-profile \
+     --instance-profile-name ec2-webapp-profile
+   
+   aws iam add-role-to-instance-profile \
+     --instance-profile-name ec2-webapp-profile \
+     --role-name ec2-webapp-role
+```
+
+4. **Associate with Launch Template:**
+   - Specify `ec2-webapp-profile` in Launch Template IAM instance profile field
+   - All instances launched from template inherit these permissions
+
+**Security Benefits:**
+
+- **No Hardcoded Credentials:** Database passwords retrieved from Secrets Manager
+- **Audit Trail:** All API calls logged via CloudTrail
+- **Least Privilege:** Only necessary permissions granted
+- **Temporary Credentials:** Automatically rotated by AWS STS
+- **Session Manager Access:** Eliminates need for SSH keys and bastion hosts
+
+**Project Trade-off:**
+
+Creating custom IAM roles was documented but not implemented in this demonstration to:
+- Reduce complexity during rapid infrastructure prototyping
+- Focus on core Solutions Architect competencies (VPC, security groups, load balancing, auto scaling)
+- Minimize potential permission issues during troubleshooting
+- Demonstrate ability to design complete solutions while prioritizing implementation efforts
+
+Service-linked roles provided sufficient functionality for the demonstration while the custom role design documents production-ready IAM architecture.
+
+**Screenshot:** ![IAM_roles.png](./images/IAM_roles.png)
 #### Launch Template
 
 Created a launch template defining instance configuration:
@@ -583,8 +646,8 @@ echo "Instance setup complete!"
 ```
 
 **Screenshot:** 
-![[prod_webapp_lt.png]]
-![[prod_webapp_lt2.png]]
+![prod_webapp_lt.png](./images/prod_webapp_lt.png)
+![prod_webapp_lt2.png](./images/prod_webapp_lt2.png)
 
 
 #### Application Load Balancer
@@ -622,12 +685,12 @@ Default Action: Forward to prod-webapp-tg
 ```
 
 **Screenshot:** 
-![[Pasted image 20260121142213.png]]
+![Pasted image 20260121142213.png](./images/Pasted image 20260121142213.png)
 
-![[Pasted image 20260121142135.png]]
+![Pasted image 20260121142135.png](./images/Pasted image 20260121142135.png)
 
 **alb-sg**
-![[alb_sg.png]]
+![alb_sg.png](./images/alb_sg.png)
 
 #### Auto Scaling Group
 
@@ -652,9 +715,9 @@ Scaling Policies:
 ```
 
 **Screenshot:** 
-![[prod_webapp_asg.png]]
-![[Pasted image 20260120124513.png]]
-![[load_test_asg.png]]
+![prod_webapp_asg.png](./images/prod_webapp_asg.png)
+![Pasted image 20260120124513.png](./images/Pasted image 20260120124513.png)
+![load_test_asg.png](./images/load_test_asg.png)
 
 
 **How Auto Scaling Works:**
@@ -665,10 +728,10 @@ Scaling Policies:
 5. Instances are distributed evenly across AZs
 
 **Test Results:**
-- ✅ Two instances launched automatically (one per AZ)
-- ✅ Both instances registered with target group
-- ✅ Health checks passing after ~2 minutes
-- ✅ Application accessible via ALB DNS
+- Two instances launched automatically (one per AZ)
+- Both instances registered with target group
+- Health checks passing after ~2 minutes
+- Application accessible via ALB DNS
 
 ---
 
@@ -725,16 +788,16 @@ Lifecycle: Delete old versions after 30 days
 ```
 
 **Screenshot:** 
-![[s3_buckets.png]]
+![s3_buckets.png](./images/s3_buckets.png)
 **prod-webapp-static-assets-js-20260120**
-![[s3_static_assets.png]]
-![[Pasted image 20260121134345.png]]
+![s3_static_assets.png](./images/s3_static_assets.png)
+![Pasted image 20260121134345.png](./images/Pasted image 20260121134345.png)
 
 **prod-webapp-logs-js-20260120**
-![[s3_logs_lifecycle.png]]
+![s3_logs_lifecycle.png](./images/s3_logs_lifecycle.png)
 
 **prod-pipeline-artifacts-js-20260120**
-![[s3_artifacts_lifecycle.png]]
+![s3_artifacts_lifecycle.png](./images/s3_artifacts_lifecycle.png)
 
 #### CloudFront Distribution (Optional)
 
@@ -761,10 +824,10 @@ TTL:
 **Optional - designed but not implemented to control project costs**
 
 **Performance Benefits:**
-- 🚀 Static assets served from edge locations (reduced latency)
-- 💰 Reduced data transfer costs from origin
-- 📉 Lower load on application servers
-- 🔒 HTTPS enforced automatically
+- Static assets served from edge locations (reduced latency)
+- Reduced data transfer costs from origin
+- Lower load on application servers
+- HTTPS enforced automatically
 
 ---
 
@@ -798,14 +861,14 @@ prod-webapp/
 ```
 
 **Screenshot:** 
-![[codecommit_repo.png]]
-![[codecommit_repo2.png]]
-![[codecommit_webapp.png]]
+![codecommit_repo.png](./images/codecommit_repo.png)
+![codecommit_repo2.png](./images/codecommit_repo2.png)
+![codecommit_webapp.png](./images/codecommit_webapp.png)
 
 #### CodeBuild Project
 
 **Build Specification (buildspec.yml):**
-![[Pasted image 20260121134611.png]]
+![Pasted image 20260121134611.png](./images/Pasted image 20260121134611.png)
 
 **Build Project Configuration:**
 ```yaml
@@ -822,10 +885,10 @@ Logs: CloudWatch Logs enabled
 ```
 
 **Screenshot:** 
-![[codebuild.png]]
-![[codebuild2.png]]
+![codebuild.png](./images/codebuild.png)
+![codebuild2.png](./images/codebuild2.png)
 **Build History**
-![[codebuild_history.png]]
+![codebuild_history.png](./images/codebuild_history.png)
 #### CodeDeploy Configuration
 
 **Application Specification (appspec.yml):**
@@ -925,8 +988,8 @@ Load Balancer: prod-webapp-alb
 ```
 
 **Screenshot:** 
-![[codedeploy.png]]
-![[codedeploy.png]]
+![codedeploy.png](./images/codedeploy.png)
+![codedeploy.png](./images/codedeploy.png)
 
 #### CodePipeline
 
@@ -959,7 +1022,7 @@ Stage 3: Deploy
 ```
 
 **Screenshot:**
-![[Codepipeline.png]]
+![Codepipeline.png](./images/Codepipeline.png)
 
 #### CI/CD Deployment Challenges & Solutions
 **Challenge**: CodeDeploy Agent Connectivity
@@ -1091,7 +1154,7 @@ Description: Alert when database storage is running low
 ```
 
 **Screenshot:** 
-![[CloudWatch.png]]
+![CloudWatch.png](./images/CloudWatch.png)
 
 #### SNS Topic Configuration
 
@@ -1103,7 +1166,7 @@ Subscriptions:
   - Endpoint: your-email@example.com
   - Status: Confirmed
 ```
-![[Pasted image 20260120130918.png]]
+![Pasted image 20260120130918.png](./images/Pasted image 20260120130918.png)
 
 **Sample Alert Email:**
 ```
@@ -1124,7 +1187,7 @@ UnHealthyHostCount for LoadBalancer app/prod-webapp-alb/...
 ```
 
 **Sample Email**
-![[Sample_alarm_email.png]]
+![Sample_alarm_email.png](./images/Sample_alarm_email.png)
 #### CloudWatch Dashboard
 
 Created a custom dashboard for at-a-glance monitoring:
@@ -1135,18 +1198,18 @@ Created a custom dashboard for at-a-glance monitoring:
    - Target Response Time
    - HTTP 2XX Count
    - HTTP 5XX Coun
-![[Pasted image 20260121135506.png]]
+![Pasted image 20260121135506.png](./images/Pasted image 20260121135506.png)
 1. **EC2/ASG Metrics** (3 metrics)
    - CPU Utilization
    - Network In/Out
    - Instance Count
-![[Pasted image 20260121135536.png]]
+![Pasted image 20260121135536.png](./images/Pasted image 20260121135536.png)
 1. **RDS Metrics** (4 metrics)
    - CPU Utilization
    - Database Connections
    - Free Storage Space
    - Read/Write IOPS
-![[Pasted image 20260121135608.png]]
+![Pasted image 20260121135608.png](./images/Pasted image 20260121135608.png)
 
 **Dashboard Benefits:**
 - Single pane of glass for infrastructure health
@@ -1278,7 +1341,7 @@ $ curl http://prod-webapp-alb-1699035962.us-east-2.elb.amazonaws.com
 Expected: HTTP 200, HTML content showing instance ID
 Actual: PASS - Received response from instance i-0abc123def456789
 ```
-![[alb_endpoint_access.png]]
+![alb_endpoint_access.png](./images/alb_endpoint_access.png)
 **Instance Metadata Verification:** Browser-based metadata display showed "N/A" due to IMDSv2 token requirements in JavaScript. Instance details verified via AWS Systems Manager Session Manager:
 
 **Verified Instance Details:**
@@ -1339,7 +1402,7 @@ sh-5.2$
 ```
 
 **Screenshot:** 
-![[alb_endpt_test.png]]
+![alb_endpt_test.png](./images/alb_endpt_test.png)
 
 ### Security Validation
 
@@ -1446,7 +1509,7 @@ $ aws autoscaling describe-scaling-activities \
 - Zero downtime for end users
 
 **Screenshot:** 
-![[asg_zero_downtime.png]]
+![asg_zero_downtime.png](./images/asg_zero_downtime.png)
 - Terminated instance at 08:05am
 - Auto Scaling Group launched new instance at 08:05am
 - Zero Downtime
@@ -1480,7 +1543,7 @@ Results:
 ```
 
 **Screenshot:** 
-![[load_test_asg.png]]
+![load_test_asg.png](./images/load_test_asg.png)
 
 
 **Test 3: RDS Multi-AZ Failover (Simulated)**
