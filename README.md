@@ -299,10 +299,10 @@ Security Group ID: sg-[FILL IN]
 ![rds_sg.png](./images/rds_sg.png)
 
 **Security Analysis:**
-- ✅ Application tier cannot be accessed directly from internet
-- ✅ Database can only be accessed from application tier
-- ✅ All communication flows are explicitly defined
-- ✅ Outbound traffic is limited to required destinations only
+- Application tier cannot be accessed directly from internet
+- Database can only be accessed from application tier
+- All communication flows are explicitly defined
+- Outbound traffic is limited to required destinations only
 
 #### Network ACLs (Optional Defense Layer)
 
