@@ -206,7 +206,7 @@ I implemented a three-tier subnet architecture across two Availability Zones:
 | db-subnet-2b | 10.0.21.0/24 | us-east-2b | Private | Database standby |
 
 **Screenshot:**
-![[resource_map.png]]
+![VPC Resource Map showing 6 subnets across 2 AZs](./images/vpc-resource-map.png)
 
 **Security Note:** Notice the CIDR spacing - public subnets use 10.0.1-2, private use 10.0.10-11, and database uses 10.0.20-21. This makes it easy to identify subnet types at a glance and apply NACL rules.
 
