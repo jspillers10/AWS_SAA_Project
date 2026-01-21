@@ -233,7 +233,7 @@ I implemented a three-tier subnet architecture across two Availability Zones:
 - Ensures maximum security for data tier
 
 **Screenshots:**
-![[all_route_tables.png]]
+![all_route_tables.png](./images/all_route_tables.png)
 **public-rt**
 ![public_rt.png](./images/public_rt.png)
 ![public_rt2.png](./images/public_rt2.png)
