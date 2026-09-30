@@ -1,0 +1,71 @@
+#!/bin/bash
+# Bootstraps the host only. App code arrives via CodeDeploy.
+# No credentials live in this script: the DB app secret is pulled at boot
+# using the instance profile.
+set -euxo pipefail
+
+REGION="${region}"
+
+dnf -y update
+dnf -y install httpd php php-fpm php-mysqlnd php-json ruby wget amazon-cloudwatch-agent
+
+# --- CodeDeploy agent -------------------------------------------------------
+cd /tmp
+wget -q "https://aws-codedeploy-$REGION.s3.$REGION.amazonaws.com/latest/install"
+chmod +x ./install
+./install auto
+systemctl enable --now codedeploy-agent
+
+# --- DB config from Secrets Manager (readable by apache only) -------------
+install -d -m 0750 -o root -g apache /etc/webapp
+aws secretsmanager get-secret-value \
+  --region "$REGION" \
+  --secret-id "${app_secret_arn}" \
+  --query SecretString --output text > /etc/webapp/db.json
+curl -fsSL "https://truststore.pki.rds.amazonaws.com/$REGION/$REGION-bundle.pem" -o /etc/webapp/rds-ca.pem
+chown root:apache /etc/webapp/db.json /etc/webapp/rds-ca.pem
+chmod 0640 /etc/webapp/db.json
+chmod 0644 /etc/webapp/rds-ca.pem
+
+# --- Baseline content so ALB health checks pass before the first deploy ----
+# (appspec.yml uses file_exists_behavior: OVERWRITE so CodeDeploy can replace these)
+cat > /var/www/html/health.php <<'EOF'
+<?php http_response_code(200); header('Content-Type: text/plain'); echo "ok";
+EOF
+cat > /var/www/html/index.html <<'EOF'
+<!doctype html><title>Awaiting deployment</title><p>Instance is up. Waiting for the first CodePipeline deployment.</p>
+EOF
+chown -R apache:apache /var/www/html
+
+systemctl enable --now php-fpm httpd
+
+# --- CloudWatch agent: memory/disk + Apache logs --------------------------
+cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json <<'EOF'
+{
+  "metrics": {
+    "namespace": "${name}/EC2",
+    "append_dimensions": { "AutoScalingGroupName": "$${aws:AutoScalingGroupName}", "InstanceId": "$${aws:InstanceId}" },
+    "aggregation_dimensions": [["AutoScalingGroupName"]],
+    "metrics_collected": {
+      "mem":  { "measurement": ["mem_used_percent"] },
+      "disk": { "measurement": ["used_percent"], "resources": ["/"] }
+    }
+  },
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          { "file_path": "/var/log/httpd/access_log", "log_group_name": "/${name}/httpd/access", "log_stream_name": "{instance_id}" },
+          { "file_path": "/var/log/httpd/error_log",  "log_group_name": "/${name}/httpd/error",  "log_stream_name": "{instance_id}" },
+          { "file_path": "/var/log/aws/codedeploy-agent/codedeploy-agent.log", "log_group_name": "/${name}/codedeploy-agent", "log_stream_name": "{instance_id}" }
+        ]
+      }
+    }
+  }
+}
+EOF
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+  -a fetch-config -m ec2 -s \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json
+
+echo "bootstrap complete"

@@ -1,0 +1,30 @@
+# Copy to terraform.tfvars and edit. Values below are tuned for a short-lived lab
+# (easy teardown, lower cost). Variable defaults in variables.tf are the prod-safe ones.
+
+aws_region  = "us-east-2"
+project     = "prod-webapp"
+environment = "prod"
+owner       = "jake-spillers"
+
+alert_email = "you@example.com"
+
+# Cost / teardown knobs for a lab run
+single_nat_gateway          = true  # saves ~$0.045/hr
+db_multi_az                 = true  # set false to halve RDS cost while iterating
+db_backup_retention_days    = 1     # Free Tier accounts are capped at 1
+db_deletion_protection      = false
+db_skip_final_snapshot      = true
+alb_deletion_protection     = false
+secret_recovery_window_days = 0
+
+enable_waf        = true  # ~$5/mo per web ACL + $1/rule, prorated
+enable_cloudfront = false
+enable_flow_logs  = true
+
+# CI/CD source
+source_provider = "codecommit"
+# source_provider   = "github"
+# github_repository = "jspillers10/prod-webapp"
+source_branch = "main"
+
+# acm_certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/..."

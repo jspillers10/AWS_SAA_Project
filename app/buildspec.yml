@@ -1,0 +1,17 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      php: 8.2
+  build:
+    commands:
+      - echo "Linting PHP"
+      - find webapp -name '*.php' -print0 | xargs -0 -n1 php -l
+      - for f in scripts/*.sh; do bash -n "$f"; done
+
+artifacts:
+  files:
+    - appspec.yml
+    - webapp/**/*
+    - scripts/**/*

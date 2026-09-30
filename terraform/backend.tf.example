@@ -1,0 +1,11 @@
+# Rename to backend.tf after creating the state bucket.
+# Terraform 1.10+ supports native S3 state locking (use_lockfile), no DynamoDB table needed.
+terraform {
+  backend "s3" {
+    bucket       = "CHANGE-ME-tfstate-bucket"
+    key          = "aws-saa-project/prod/terraform.tfstate"
+    region       = "us-east-2"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
